@@ -3,92 +3,176 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 
-namespace StudyGuard
+namespace StudyGuard;
+
+public class CloudConfigService
 {
-    public class CloudConfigDto
+    private readonly HttpClient _httpClient;
+
+    public CloudConfigService()
     {
-        public string BlockMessage { get; set; } = "";
+        string? serverUrl =
+            Environment.GetEnvironmentVariable(
+                "STUDYGUARD_SERVER_URL"
+            );
 
-        public bool StudyModeEnabled { get; set; }
+        string? deviceKey =
+            Environment.GetEnvironmentVariable(
+                "STUDYGUARD_DEVICE_KEY"
+            );
 
-        public DateTimeOffset UpdatedAt { get; set; }
-    }
-
-    public class CloudConfigService
-    {
-        private readonly HttpClient httpClient;
-
-        public CloudConfigService()
+        if (string.IsNullOrWhiteSpace(serverUrl))
         {
-            httpClient = new HttpClient
-            {
-                BaseAddress =
-                    new Uri("http://localhost:5182")
-            };
-
-            httpClient.DefaultRequestHeaders.Add(
-                "X-Device-Key",
-                "SG-Device-4521-Y"
+            throw new InvalidOperationException(
+                "STUDYGUARD_SERVER_URL tanımlı değil."
             );
         }
 
-        public async Task<CloudConfigDto?> GetConfigAsync()
+        if (string.IsNullOrWhiteSpace(deviceKey))
         {
-            try
+            throw new InvalidOperationException(
+                "STUDYGUARD_DEVICE_KEY tanımlı değil."
+            );
+        }
+
+        serverUrl =
+            serverUrl.TrimEnd('/') + "/";
+
+        _httpClient =
+            new HttpClient
             {
-                return await httpClient
-                    .GetFromJsonAsync<CloudConfigDto>(
-                        "/api/config"
-                    );
-            }
-            catch
+                BaseAddress =
+                    new Uri(serverUrl),
+
+                Timeout =
+                    TimeSpan.FromSeconds(20)
+            };
+
+        _httpClient
+            .DefaultRequestHeaders
+            .Add(
+                "X-Device-Key",
+                deviceKey
+            );
+    }
+
+
+    // ==================================================
+    // CONFIG
+    // ==================================================
+
+    public async Task<CloudConfigDto?> GetConfigAsync()
+    {
+        try
+        {
+            HttpResponseMessage response =
+                await _httpClient.GetAsync(
+                    "api/config"
+                );
+
+            if (!response.IsSuccessStatusCode)
             {
                 return null;
             }
-        }
 
-        public async Task<bool> SendViolationAsync(
-            string domain)
+            return await response.Content
+                .ReadFromJsonAsync<CloudConfigDto>();
+        }
+        catch
         {
-            try
-            {
-                var response =
-                    await httpClient.PostAsJsonAsync(
-                        "/api/violations",
-                        new
-                        {
-                            domain = domain
-                        }
-                    );
-
-                return response.IsSuccessStatusCode;
-            }
-            catch
-            {
-                return false;
-            }
+            return null;
         }
+    }
 
-        public async Task<bool> SendHeartbeatAsync()
+
+    // ==================================================
+    // VIOLATION
+    // ==================================================
+
+    public async Task<bool> SendViolationAsync(
+        string domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain))
         {
-            try
-            {
-                var response =
-                    await httpClient.PostAsJsonAsync(
-                        "/api/device/heartbeat",
-                        new
-                        {
-                            deviceName =
-                                Environment.MachineName
-                        }
-                    );
-
-                return response.IsSuccessStatusCode;
-            }
-            catch
-            {
-                return false;
-            }
+            return false;
         }
+
+        try
+        {
+            var body =
+                new
+                {
+                    domain =
+                        domain.Trim()
+                };
+
+            HttpResponseMessage response =
+                await _httpClient.PostAsJsonAsync(
+                    "api/violations",
+                    body
+                );
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+
+    // ==================================================
+    // HEARTBEAT
+    // ==================================================
+
+    public async Task<bool> SendHeartbeatAsync()
+    {
+        try
+        {
+            var body =
+                new
+                {
+                    deviceName =
+                        Environment.MachineName
+                };
+
+            HttpResponseMessage response =
+                await _httpClient.PostAsJsonAsync(
+                    "api/device/heartbeat",
+                    body
+                );
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
+
+
+// ==================================================
+// CLOUD DTO
+// ==================================================
+
+public class CloudConfigDto
+{
+    public string BlockMessage
+    {
+        get;
+        set;
+    } = "";
+
+    public bool StudyModeEnabled
+    {
+        get;
+        set;
+    }
+
+    public DateTimeOffset UpdatedAt
+    {
+        get;
+        set;
     }
 }

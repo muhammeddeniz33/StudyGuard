@@ -68,9 +68,15 @@ namespace StudyGuard
             SyncEverything()
         {
             // 1. Heartbeat gönder
-            bool heartbeatOk =
-                await cloudConfigService
-                    .SendHeartbeatAsync();
+            bool heartbeatOk = true;
+            try
+            {
+                await cloudConfigService.SendHeartbeatAsync();
+            }
+            catch
+            {
+                heartbeatOk = false;
+            }
 
             // 2. Cloud config çek
             CloudConfigDto? cloudConfig =
@@ -158,9 +164,15 @@ namespace StudyGuard
             {
             }
 
-            bool sentToCloud =
-                await cloudConfigService
-                    .SendViolationAsync(domain);
+            bool sentToCloud = true;
+            try
+            {
+                await cloudConfigService.SendViolationAsync(domain);
+            }
+            catch
+            {
+                sentToCloud = false;
+            }
 
             Dispatcher.Invoke(() =>
             {
