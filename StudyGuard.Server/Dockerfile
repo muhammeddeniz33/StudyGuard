@@ -20,6 +20,6 @@ WORKDIR /app
 
 COPY --from=build /app/publish .
 
-EXPOSE 8080
+EXPOSE 1000
 
 ENTRYPOINT ["dotnet", "StudyGuard.Server.dll"]

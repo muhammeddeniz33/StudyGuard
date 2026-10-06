@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using Npgsql;
 using System.Globalization;
 
 public class DatabaseService
@@ -7,26 +7,101 @@ public class DatabaseService
 
     public DatabaseService()
     {
-        string dataDirectory =
-            Path.Combine(
-                AppContext.BaseDirectory,
-                "data"
+        string? databaseUrl =
+            Environment.GetEnvironmentVariable(
+                "STUDYGUARD_DATABASE_URL"
             );
 
-        Directory.CreateDirectory(
-            dataDirectory
-        );
-
-        string databasePath =
-            Path.Combine(
-                dataDirectory,
-                "studyguard.db"
+        if (string.IsNullOrWhiteSpace(databaseUrl))
+        {
+            throw new InvalidOperationException(
+                "STUDYGUARD_DATABASE_URL tanımlı değil."
             );
+        }
 
         connectionString =
-            $"Data Source={databasePath}";
+            ConvertDatabaseUrlToConnectionString(
+                databaseUrl
+            );
 
         Initialize();
+    }
+
+
+    // ==================================================
+    // NEON DATABASE URL -> NPGSQL CONNECTION STRING
+    // ==================================================
+
+    private string ConvertDatabaseUrlToConnectionString(
+        string databaseUrl)
+    {
+        Uri uri =
+            new Uri(databaseUrl);
+
+        string[] userInfo =
+            uri.UserInfo.Split(
+                ':',
+                2
+            );
+
+        if (userInfo.Length != 2)
+        {
+            throw new InvalidOperationException(
+                "Database URL kullanıcı bilgileri geçersiz."
+            );
+        }
+
+        string username =
+            Uri.UnescapeDataString(
+                userInfo[0]
+            );
+
+        string password =
+            Uri.UnescapeDataString(
+                userInfo[1]
+            );
+
+        string database =
+            uri.AbsolutePath
+                .Trim('/');
+
+        NpgsqlConnectionStringBuilder builder =
+            new NpgsqlConnectionStringBuilder
+            {
+                Host =
+                    uri.Host,
+
+                Port =
+                    uri.Port > 0
+                        ? uri.Port
+                        : 5432,
+
+                Username =
+                    username,
+
+                Password =
+                    password,
+
+                Database =
+                    database,
+
+                SslMode =
+                    SslMode.Require,
+
+                Pooling =
+                    true,
+
+                MaxPoolSize =
+                    20,
+
+                Timeout =
+                    15,
+
+                CommandTimeout =
+                    30
+            };
+
+        return builder.ConnectionString;
     }
 
 
@@ -36,35 +111,35 @@ public class DatabaseService
 
     private void Initialize()
     {
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
-        CREATE TABLE IF NOT EXISTS Config
+        CREATE TABLE IF NOT EXISTS config
         (
-            Id INTEGER PRIMARY KEY,
-            BlockMessage TEXT NOT NULL,
-            StudyModeEnabled INTEGER NOT NULL,
-            UpdatedAt TEXT NOT NULL
+            id INTEGER PRIMARY KEY,
+            block_message TEXT NOT NULL,
+            study_mode_enabled BOOLEAN NOT NULL,
+            updated_at TIMESTAMPTZ NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS Violations
+        CREATE TABLE IF NOT EXISTS violations
         (
-            Id TEXT PRIMARY KEY,
-            Timestamp TEXT NOT NULL,
-            Domain TEXT NOT NULL,
-            Action TEXT NOT NULL
+            id UUID PRIMARY KEY,
+            timestamp TIMESTAMPTZ NOT NULL,
+            domain TEXT NOT NULL,
+            action TEXT NOT NULL
         );
 
-        CREATE TABLE IF NOT EXISTS DeviceStatus
+        CREATE TABLE IF NOT EXISTS device_status
         (
-            Id INTEGER PRIMARY KEY,
-            DeviceName TEXT NOT NULL,
-            LastHeartbeat TEXT NULL
+            id INTEGER PRIMARY KEY,
+            device_name TEXT NOT NULL,
+            last_heartbeat TIMESTAMPTZ NULL
         );
         """;
 
@@ -75,35 +150,37 @@ public class DatabaseService
         // DEFAULT CONFIG
         // ----------------------------------------------
 
-        using SqliteCommand configCommand =
+        using NpgsqlCommand configCommand =
             connection.CreateCommand();
 
         configCommand.CommandText =
         """
-        INSERT OR IGNORE INTO Config
+        INSERT INTO config
         (
-            Id,
-            BlockMessage,
-            StudyModeEnabled,
-            UpdatedAt
+            id,
+            block_message,
+            study_mode_enabled,
+            updated_at
         )
         VALUES
         (
             1,
-            $message,
-            1,
-            $updatedAt
-        );
+            @message,
+            TRUE,
+            @updatedAt
+        )
+        ON CONFLICT (id)
+        DO NOTHING;
         """;
 
         configCommand.Parameters.AddWithValue(
-            "$message",
+            "message",
             "Dersine devam et. Serbest zamanda tekrar deneyebilirsin."
         );
 
         configCommand.Parameters.AddWithValue(
-            "$updatedAt",
-            DateTimeOffset.UtcNow.ToString("O")
+            "updatedAt",
+            DateTimeOffset.UtcNow
         );
 
         configCommand.ExecuteNonQuery();
@@ -113,23 +190,25 @@ public class DatabaseService
         // DEFAULT DEVICE
         // ----------------------------------------------
 
-        using SqliteCommand deviceCommand =
+        using NpgsqlCommand deviceCommand =
             connection.CreateCommand();
 
         deviceCommand.CommandText =
         """
-        INSERT OR IGNORE INTO DeviceStatus
+        INSERT INTO device_status
         (
-            Id,
-            DeviceName,
-            LastHeartbeat
+            id,
+            device_name,
+            last_heartbeat
         )
         VALUES
         (
             1,
             'Kardes-PC',
             NULL
-        );
+        )
+        ON CONFLICT (id)
+        DO NOTHING;
         """;
 
         deviceCommand.ExecuteNonQuery();
@@ -142,23 +221,23 @@ public class DatabaseService
 
     public StudyGuardConfig GetConfig()
     {
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
         SELECT
-            BlockMessage,
-            StudyModeEnabled,
-            UpdatedAt
-        FROM Config
-        WHERE Id = 1;
+            block_message,
+            study_mode_enabled,
+            updated_at
+        FROM config
+        WHERE id = 1;
         """;
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             command.ExecuteReader();
 
         if (!reader.Read())
@@ -174,13 +253,10 @@ public class DatabaseService
                 reader.GetString(0),
 
             StudyModeEnabled =
-                reader.GetInt64(1) == 1,
+                reader.GetBoolean(1),
 
             UpdatedAt =
-                DateTimeOffset.Parse(
-                    reader.GetString(2),
-                    CultureInfo.InvariantCulture
-                )
+                reader.GetFieldValue<DateTimeOffset>(2)
         };
     }
 
@@ -191,29 +267,29 @@ public class DatabaseService
         DateTimeOffset updatedAt =
             DateTimeOffset.UtcNow;
 
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
-        UPDATE Config
+        UPDATE config
         SET
-            BlockMessage = $message,
-            UpdatedAt = $updatedAt
-        WHERE Id = 1;
+            block_message = @message,
+            updated_at = @updatedAt
+        WHERE id = 1;
         """;
 
         command.Parameters.AddWithValue(
-            "$message",
+            "message",
             message
         );
 
         command.Parameters.AddWithValue(
-            "$updatedAt",
-            updatedAt.ToString("O")
+            "updatedAt",
+            updatedAt
         );
 
         command.ExecuteNonQuery();
@@ -228,29 +304,29 @@ public class DatabaseService
         DateTimeOffset updatedAt =
             DateTimeOffset.UtcNow;
 
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
-        UPDATE Config
+        UPDATE config
         SET
-            StudyModeEnabled = $enabled,
-            UpdatedAt = $updatedAt
-        WHERE Id = 1;
+            study_mode_enabled = @enabled,
+            updated_at = @updatedAt
+        WHERE id = 1;
         """;
 
         command.Parameters.AddWithValue(
-            "$enabled",
-            enabled ? 1 : 0
+            "enabled",
+            enabled
         );
 
         command.Parameters.AddWithValue(
-            "$updatedAt",
-            updatedAt.ToString("O")
+            "updatedAt",
+            updatedAt
         );
 
         command.ExecuteNonQuery();
@@ -282,47 +358,47 @@ public class DatabaseService
                     "BLOCKED"
             };
 
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
-        INSERT INTO Violations
+        INSERT INTO violations
         (
-            Id,
-            Timestamp,
-            Domain,
-            Action
+            id,
+            timestamp,
+            domain,
+            action
         )
         VALUES
         (
-            $id,
-            $timestamp,
-            $domain,
-            $action
+            @id,
+            @timestamp,
+            @domain,
+            @action
         );
         """;
 
         command.Parameters.AddWithValue(
-            "$id",
-            entry.Id.ToString()
+            "id",
+            entry.Id
         );
 
         command.Parameters.AddWithValue(
-            "$timestamp",
-            entry.Timestamp.ToString("O")
+            "timestamp",
+            entry.Timestamp
         );
 
         command.Parameters.AddWithValue(
-            "$domain",
+            "domain",
             entry.Domain
         );
 
         command.Parameters.AddWithValue(
-            "$action",
+            "action",
             entry.Action
         );
 
@@ -338,30 +414,30 @@ public class DatabaseService
         List<ViolationEntry> result =
             new();
 
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
         SELECT
-            Id,
-            Timestamp,
-            Domain,
-            Action
-        FROM Violations
-        ORDER BY Timestamp DESC
-        LIMIT $limit;
+            id,
+            timestamp,
+            domain,
+            action
+        FROM violations
+        ORDER BY timestamp DESC
+        LIMIT @limit;
         """;
 
         command.Parameters.AddWithValue(
-            "$limit",
+            "limit",
             limit
         );
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             command.ExecuteReader();
 
         while (reader.Read())
@@ -370,15 +446,10 @@ public class DatabaseService
                 new ViolationEntry
                 {
                     Id =
-                        Guid.Parse(
-                            reader.GetString(0)
-                        ),
+                        reader.GetGuid(0),
 
                     Timestamp =
-                        DateTimeOffset.Parse(
-                            reader.GetString(1),
-                            CultureInfo.InvariantCulture
-                        ),
+                        reader.GetFieldValue<DateTimeOffset>(1),
 
                     Domain =
                         reader.GetString(2),
@@ -400,37 +471,37 @@ public class DatabaseService
     public void UpdateHeartbeat(
         string deviceName)
     {
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
-        UPDATE DeviceStatus
+        UPDATE device_status
         SET
-            DeviceName =
+            device_name =
                 CASE
-                    WHEN LENGTH(TRIM($deviceName)) > 0
-                    THEN $deviceName
-                    ELSE DeviceName
+                    WHEN LENGTH(TRIM(@deviceName)) > 0
+                    THEN @deviceName
+                    ELSE device_name
                 END,
 
-            LastHeartbeat =
-                $heartbeat
+            last_heartbeat =
+                @heartbeat
 
-        WHERE Id = 1;
+        WHERE id = 1;
         """;
 
         command.Parameters.AddWithValue(
-            "$deviceName",
+            "deviceName",
             deviceName ?? ""
         );
 
         command.Parameters.AddWithValue(
-            "$heartbeat",
-            DateTimeOffset.UtcNow.ToString("O")
+            "heartbeat",
+            DateTimeOffset.UtcNow
         );
 
         command.ExecuteNonQuery();
@@ -439,22 +510,22 @@ public class DatabaseService
 
     public DeviceState GetDeviceState()
     {
-        using SqliteConnection connection =
+        using NpgsqlConnection connection =
             OpenConnection();
 
-        using SqliteCommand command =
+        using NpgsqlCommand command =
             connection.CreateCommand();
 
         command.CommandText =
         """
         SELECT
-            DeviceName,
-            LastHeartbeat
-        FROM DeviceStatus
-        WHERE Id = 1;
+            device_name,
+            last_heartbeat
+        FROM device_status
+        WHERE id = 1;
         """;
 
-        using SqliteDataReader reader =
+        using NpgsqlDataReader reader =
             command.ExecuteReader();
 
         if (!reader.Read())
@@ -472,10 +543,7 @@ public class DatabaseService
         if (!reader.IsDBNull(1))
         {
             heartbeat =
-                DateTimeOffset.Parse(
-                    reader.GetString(1),
-                    CultureInfo.InvariantCulture
-                );
+                reader.GetFieldValue<DateTimeOffset>(1);
         }
 
         return new DeviceState
@@ -493,10 +561,12 @@ public class DatabaseService
     // CONNECTION
     // ==================================================
 
-    private SqliteConnection OpenConnection()
+    private NpgsqlConnection OpenConnection()
     {
-        SqliteConnection connection =
-            new(connectionString);
+        NpgsqlConnection connection =
+            new NpgsqlConnection(
+                connectionString
+            );
 
         connection.Open();
 
@@ -506,7 +576,7 @@ public class DatabaseService
 
 
 // ====================================================
-// DATABASE MODELS
+// MODELS
 // ====================================================
 
 public class StudyGuardConfig
