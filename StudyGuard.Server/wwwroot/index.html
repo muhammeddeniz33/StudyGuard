@@ -1,0 +1,1108 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>StudyGuard Admin</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #111827;
+            color: white;
+        }
+
+        .container {
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-top: 0;
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            margin-top: 0;
+        }
+
+        .card {
+            background: #1f2937;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .status-box {
+            background: #111827;
+            border-radius: 12px;
+            padding: 18px;
+        }
+
+        .status-title {
+            color: #9ca3af;
+            font-size: 13px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .status-main {
+            font-size: 19px;
+            font-weight: bold;
+        }
+
+        .status-detail {
+            margin-top: 7px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            background: white;
+            color: #111827;
+        }
+
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 12px 18px;
+            margin-top: 15px;
+            margin-right: 8px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .success {
+            background: #16a34a;
+            color: white;
+        }
+
+        .danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .secondary {
+            background: #374151;
+            color: white;
+        }
+
+        .status {
+            margin-top: 15px;
+            color: #9ca3af;
+        }
+
+        .online {
+            color: #22c55e;
+        }
+
+        .offline {
+            color: #ef4444;
+        }
+
+        .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 7px;
+        }
+
+        .dot-online {
+            background: #22c55e;
+        }
+
+        .dot-offline {
+            background: #ef4444;
+        }
+
+        #adminPanel {
+            display: none;
+        }
+
+        .study-state {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .violation {
+            padding: 12px 0;
+            border-bottom: 1px solid #374151;
+        }
+
+            .violation:last-child {
+                border-bottom: none;
+            }
+
+        .violation-domain {
+            font-size: 17px;
+            font-weight: bold;
+        }
+
+        .violation-time {
+            margin-top: 4px;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+
+        .empty {
+            color: #9ca3af;
+        }
+
+        @media (max-width: 650px) {
+
+            .container {
+                margin: 15px auto;
+                padding: 12px;
+            }
+
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <div class="container">
+
+        <h1>StudyGuard Admin</h1>
+
+
+        <!-- SERVER STATUS -->
+
+        <div class="card">
+
+            <div class="status-grid">
+
+                <div class="status-box">
+
+                    <div class="status-title">
+                        StudyGuard Server
+                    </div>
+
+                    <div id="serverStatus"
+                         class="status-main offline">
+                        Kontrol ediliyor...
+                    </div>
+
+                </div>
+
+
+                <div class="status-box">
+
+                    <div class="status-title">
+                        StudyGuard Cihazı
+                    </div>
+
+                    <div id="deviceStatus"
+                         class="status-main offline">
+                        Giriş yapınca görüntülenecek
+                    </div>
+
+                    <div id="deviceLastSeen"
+                         class="status-detail">
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- LOGIN PANEL -->
+
+        <div id="loginPanel"
+             class="card">
+
+            <h2>Admin Girişi</h2>
+
+            <input id="adminKey"
+                   type="password"
+                   placeholder="Admin anahtarı">
+
+            <button class="primary"
+                    onclick="login()">
+                GİRİŞ
+            </button>
+
+            <div id="loginStatus"
+                 class="status"></div>
+
+        </div>
+
+
+        <!-- ADMIN PANEL -->
+
+        <div id="adminPanel">
+
+
+            <!-- DEVICE INFO -->
+
+            <div class="card">
+
+                <h2>Cihaz Bilgisi</h2>
+
+                <div id="deviceNameText"
+                     class="study-state">
+                    Cihaz adı alınıyor...
+                </div>
+
+                <div id="deviceDetailedStatus"
+                     class="status">
+                </div>
+
+            </div>
+
+
+            <!-- MESSAGE -->
+
+            <div class="card">
+
+                <h2>Engel Mesajı</h2>
+
+                <textarea id="message"
+                          placeholder="Engel ekranında gösterilecek mesaj..."></textarea>
+
+                <button class="primary"
+                        onclick="updateMessage()">
+                    MESAJI GÜNCELLE
+                </button>
+
+                <div id="messageStatus"
+                     class="status"></div>
+
+            </div>
+
+
+            <!-- STUDY MODE -->
+
+            <div class="card">
+
+                <h2>Ders Modu</h2>
+
+                <div id="studyStatus"
+                     class="study-state">
+                    Durum alınıyor...
+                </div>
+
+                <button class="success"
+                        onclick="setStudyMode(true)">
+                    DERS MODUNU AÇ
+                </button>
+
+                <button class="danger"
+                        onclick="setStudyMode(false)">
+                    DERS MODUNU KAPAT
+                </button>
+
+                <div id="studyActionStatus"
+                     class="status"></div>
+
+            </div>
+
+
+            <!-- VIOLATIONS -->
+
+            <div class="card">
+
+                <h2>Son İhlaller</h2>
+
+                <div id="violations">
+                    Yükleniyor...
+                </div>
+
+            </div>
+
+
+            <!-- LOGOUT -->
+
+            <div class="card">
+
+                <button class="secondary"
+                        onclick="logout()">
+                    ÇIKIŞ
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <script>
+
+let adminKey =
+            sessionStorage.getItem(
+                "studyguard_admin_key"
+            );
+
+
+// ==================================================
+// SERVER STATUS
+// ==================================================
+
+async function checkServer() {
+
+            const element =
+                document.getElementById(
+                    "serverStatus"
+                );
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/health",
+                        {
+                            cache: "no-store"
+                        }
+                    );
+
+                if (!response.ok) {
+                    throw new Error();
+                }
+
+                element.innerHTML =
+                    '<span class="dot dot-online"></span>ONLINE';
+
+                element.className =
+                    "status-main online";
+
+            }
+            catch {
+
+                element.innerHTML =
+                    '<span class="dot dot-offline"></span>OFFLINE';
+
+                element.className =
+                    "status-main offline";
+            }
+}
+
+
+// ==================================================
+// DEVICE STATUS
+// ==================================================
+
+async function loadDeviceStatus() {
+
+            if (!adminKey)
+                return;
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/device-status",
+                        {
+                            headers: {
+                                "X-Admin-Key":
+                                    adminKey
+                            },
+
+                            cache: "no-store"
+                        }
+                    );
+
+                if (response.status === 401) {
+
+                    logout();
+                    return;
+                }
+
+                if (!response.ok)
+                    return;
+
+                const data =
+                    await response.json();
+
+
+                const deviceStatus =
+                    document.getElementById(
+                        "deviceStatus"
+                    );
+
+                const lastSeen =
+                    document.getElementById(
+                        "deviceLastSeen"
+                    );
+
+                const deviceNameText =
+                    document.getElementById(
+                        "deviceNameText"
+                    );
+
+                const detailedStatus =
+                    document.getElementById(
+                        "deviceDetailedStatus"
+                    );
+
+
+                deviceNameText.innerText =
+                    "Cihaz: " + data.deviceName;
+
+
+                if (data.online) {
+
+                    deviceStatus.innerHTML =
+                        '<span class="dot dot-online"></span>' +
+                        escapeHtml(data.deviceName) +
+                        ' — ONLINE';
+
+                    deviceStatus.className =
+                        "status-main online";
+
+                }
+                else {
+
+                    deviceStatus.innerHTML =
+                        '<span class="dot dot-offline"></span>' +
+                        escapeHtml(data.deviceName) +
+                        ' — OFFLINE';
+
+                    deviceStatus.className =
+                        "status-main offline";
+                }
+
+
+                if (data.secondsAgo == null) {
+
+                    lastSeen.innerText =
+                        "Henüz bağlantı kurulmadı.";
+
+                    detailedStatus.innerText =
+                        "StudyGuard Agent bu server'a henüz heartbeat göndermedi.";
+
+                }
+                else {
+
+                    const seconds =
+                        Math.round(
+                            data.secondsAgo
+                        );
+
+                    lastSeen.innerText =
+                        "Son bağlantı: " +
+                        formatSeconds(seconds);
+
+                    detailedStatus.innerText =
+                        "Son heartbeat " +
+                        formatSeconds(seconds) +
+                        " alındı.";
+                }
+
+            }
+            catch {
+
+                document.getElementById(
+                    "deviceStatus"
+                ).innerHTML =
+                    '<span class="dot dot-offline"></span>' +
+                    'CİHAZ DURUMU ALINAMADI';
+
+                document.getElementById(
+                    "deviceStatus"
+                ).className =
+                    "status-main offline";
+            }
+}
+
+
+function formatSeconds(seconds) {
+
+            if (seconds <= 3)
+                return "az önce";
+
+            if (seconds < 60)
+                return seconds + " saniye önce";
+
+            const minutes =
+                Math.floor(seconds / 60);
+
+            if (minutes < 60)
+                return minutes + " dakika önce";
+
+            const hours =
+                Math.floor(minutes / 60);
+
+            return hours + " saat önce";
+}
+
+
+// ==================================================
+// LOGIN
+// ==================================================
+
+async function login() {
+
+            const inputKey =
+                document.getElementById(
+                    "adminKey"
+                ).value.trim();
+
+            if (!inputKey) {
+
+                document.getElementById(
+                    "loginStatus"
+                ).innerText =
+                    "Admin anahtarını gir.";
+
+                return;
+            }
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/config",
+                        {
+                            headers: {
+                                "X-Admin-Key":
+                                    inputKey
+                            },
+
+                            cache: "no-store"
+                        }
+                    );
+
+                if (!response.ok) {
+
+                    document.getElementById(
+                        "loginStatus"
+                    ).innerText =
+                        "Admin anahtarı yanlış.";
+
+                    return;
+                }
+
+                adminKey =
+                    inputKey;
+
+                sessionStorage.setItem(
+                    "studyguard_admin_key",
+                    adminKey
+                );
+
+                document.getElementById(
+                    "loginPanel"
+                ).style.display =
+                    "none";
+
+                document.getElementById(
+                    "adminPanel"
+                ).style.display =
+                    "block";
+
+                document.getElementById(
+                    "loginStatus"
+                ).innerText =
+                    "";
+
+                await loadConfig();
+                await loadViolations();
+                await loadDeviceStatus();
+
+            }
+            catch {
+
+                document.getElementById(
+                    "loginStatus"
+                ).innerText =
+                    "Server'a ulaşılamıyor.";
+            }
+}
+
+
+// ==================================================
+// CONFIG
+// ==================================================
+
+async function loadConfig() {
+
+            if (!adminKey)
+                return;
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/config",
+                        {
+                            headers: {
+                                "X-Admin-Key":
+                                    adminKey
+                            },
+
+                            cache: "no-store"
+                        }
+                    );
+
+                if (response.status === 401) {
+
+                    logout();
+                    return;
+                }
+
+                if (!response.ok)
+                    return;
+
+                const config =
+                    await response.json();
+
+                document.getElementById(
+                    "message"
+                ).value =
+                    config.blockMessage;
+
+                updateStudyModeText(
+                    config.studyModeEnabled
+                );
+
+            }
+            catch {
+
+                document.getElementById(
+                    "messageStatus"
+                ).innerText =
+                    "Server bağlantısı yok.";
+            }
+}
+
+
+// ==================================================
+// UPDATE MESSAGE
+// ==================================================
+
+async function updateMessage() {
+
+            const message =
+                document.getElementById(
+                    "message"
+                ).value.trim();
+
+            if (!message) {
+
+                document.getElementById(
+                    "messageStatus"
+                ).innerText =
+                    "Mesaj boş olamaz.";
+
+                return;
+            }
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/config/message",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-Admin-Key":
+                                    adminKey
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    message: message
+                                })
+                        }
+                    );
+
+                if (response.status === 401) {
+
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+
+                    document.getElementById(
+                        "messageStatus"
+                    ).innerText =
+                        "Mesaj güncellenemedi.";
+
+                    return;
+                }
+
+                document.getElementById(
+                    "messageStatus"
+                ).innerText =
+                    "Mesaj güncellendi.";
+
+            }
+            catch {
+
+                document.getElementById(
+                    "messageStatus"
+                ).innerText =
+                    "Server bağlantısı yok.";
+            }
+}
+
+
+// ==================================================
+// STUDY MODE
+// ==================================================
+
+function updateStudyModeText(enabled) {
+
+            const element =
+                document.getElementById(
+                    "studyStatus"
+                );
+
+            if (enabled) {
+
+                element.innerHTML =
+                    '<span class="dot dot-online"></span>' +
+                    'Ders modu şu anda AÇIK';
+
+                element.style.color =
+                    "#22c55e";
+
+            }
+            else {
+
+                element.innerHTML =
+                    '<span class="dot dot-offline"></span>' +
+                    'Ders modu şu anda KAPALI';
+
+                element.style.color =
+                    "#ef4444";
+            }
+}
+
+
+async function setStudyMode(enabled) {
+
+            const status =
+                document.getElementById(
+                    "studyActionStatus"
+                );
+
+            status.innerText =
+                "Güncelleniyor...";
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/config/study-mode",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+
+                                "X-Admin-Key":
+                                    adminKey
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    enabled: enabled
+                                })
+                        }
+                    );
+
+                if (response.status === 401) {
+
+                    logout();
+                    return;
+                }
+
+                if (!response.ok) {
+
+                    status.innerText =
+                        "Ders modu değiştirilemedi.";
+
+                    return;
+                }
+
+                updateStudyModeText(
+                    enabled
+                );
+
+                status.innerText =
+                    enabled
+                        ? "Ders modu açıldı."
+                        : "Ders modu kapatıldı.";
+
+                await loadDeviceStatus();
+
+            }
+            catch {
+
+                status.innerText =
+                    "Server bağlantısı yok.";
+            }
+}
+
+
+// ==================================================
+// VIOLATIONS
+// ==================================================
+
+async function loadViolations() {
+
+            if (!adminKey)
+                return;
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/admin/violations",
+                        {
+                            headers: {
+                                "X-Admin-Key":
+                                    adminKey
+                            },
+
+                            cache: "no-store"
+                        }
+                    );
+
+                if (response.status === 401) {
+
+                    logout();
+                    return;
+                }
+
+                if (!response.ok)
+                    return;
+
+                const logs =
+                    await response.json();
+
+                const container =
+                    document.getElementById(
+                        "violations"
+                    );
+
+                if (logs.length === 0) {
+
+                    container.innerHTML =
+                        '<div class="empty">' +
+                        'Henüz ihlal yok.' +
+                        '</div>';
+
+                    return;
+                }
+
+                container.innerHTML =
+                    logs.map(log => {
+
+                        const date =
+                            new Date(
+                                log.timestamp
+                            );
+
+                        return `
+                            <div class="violation">
+
+                                <div class="violation-domain">
+                                    ${escapeHtml(log.domain)}
+                                </div>
+
+                                <div class="violation-time">
+                                    ${date.toLocaleString("tr-TR")}
+                                </div>
+
+                            </div>
+                        `;
+
+                    }).join("");
+
+            }
+            catch {
+
+                document.getElementById(
+                    "violations"
+                ).innerHTML =
+                    '<div class="empty">' +
+                    'İhlaller alınamadı.' +
+                    '</div>';
+            }
+}
+
+
+// ==================================================
+// HTML ESCAPE
+// ==================================================
+
+function escapeHtml(value) {
+
+            const element =
+                document.createElement("div");
+
+            element.textContent =
+                value ?? "";
+
+            return element.innerHTML;
+}
+
+
+// ==================================================
+// LOGOUT
+// ==================================================
+
+function logout() {
+
+            adminKey =
+                null;
+
+            sessionStorage.removeItem(
+                "studyguard_admin_key"
+            );
+
+            document.getElementById(
+                "adminPanel"
+            ).style.display =
+                "none";
+
+            document.getElementById(
+                "loginPanel"
+            ).style.display =
+                "block";
+
+            document.getElementById(
+                "adminKey"
+            ).value =
+                "";
+
+            document.getElementById(
+                "deviceStatus"
+            ).innerText =
+                "Giriş yapınca görüntülenecek";
+
+            document.getElementById(
+                "deviceLastSeen"
+            ).innerText =
+                "";
+}
+
+
+// ==================================================
+// INITIALIZE
+// ==================================================
+
+async function initialize() {
+
+            await checkServer();
+
+
+            // Server health
+            setInterval(
+                checkServer,
+                3000
+            );
+
+
+            // Device heartbeat durumunu takip et
+            setInterval(
+                async () => {
+
+                    if (adminKey) {
+                        await loadDeviceStatus();
+                    }
+
+                },
+                3000
+            );
+
+
+            // İhlalleri yenile
+            setInterval(
+                async () => {
+
+                    if (adminKey) {
+                        await loadViolations();
+                    }
+
+                },
+                5000
+            );
+
+
+            // Config yenile
+            setInterval(
+                async () => {
+
+                    if (adminKey) {
+                        await loadConfig();
+                    }
+
+                },
+                5000
+            );
+
+
+            // Önceden giriş yapılmışsa
+            if (adminKey) {
+
+                document.getElementById(
+                    "adminKey"
+                ).value =
+                    adminKey;
+
+                await login();
+            }
+}
+
+
+initialize();
+
+    </script>
+
+</body>
+
+</html>

@@ -1,0 +1,6 @@
+@StudyGuard.Server_HostAddress = http://localhost:5182
+
+GET {{StudyGuard.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

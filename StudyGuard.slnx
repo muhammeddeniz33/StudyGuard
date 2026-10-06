@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="StudyGuard.Server/StudyGuard.Server.csproj" Id="5381c3eb-c33e-4040-bd7f-0644c06d7c19" />
+  <Project Path="StudyGuard/StudyGuard.csproj" />
+</Solution>
